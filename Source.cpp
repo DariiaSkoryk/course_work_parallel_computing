@@ -76,7 +76,29 @@ private:
 
 	}
 
-	void invert() {}
+	void invert() {
+		std::sort(dictionary.begin, dictionary.end);
+		//We are searching from back to avoid iterator invalidation
+		//auto and decltype are used to avoid std::map<std::string, std::vector<int>> 
+
+		auto reverseFirstSimilarWord{ std::adjacent_find(dictionary.rbegin(), dictionary.rend()) };
+		decltype(reverseFirstSimilarWord) reverseLastSimilarWord;
+
+		while (reverseFirstSimilarWord != dictionary.rend()) {			
+			reverseLastSimilarWord = std::make_reverse_iterator(dictionary.find(reverseFirstSimilarWord->first));
+			
+			//I don`t know if this loop works correctly. TEST IT !!!
+			for (auto &entry = reverseFirstSimilarWord; entry != reverseLastSimilarWord; entry++) {
+				//remember position of this word
+				reverseLastSimilarWord->second.push_back(entry->second.at(0));
+			}
+
+			//delete similar words from list except one
+			dictionary.erase((reverseLastSimilarWord - 1).base(), reverseFirstSimilarWord.base());
+			//find another similar word
+			reverseFirstSimilarWord = std::adjacent_find(dictionary.rbegin(), dictionary.rend());
+		}
+	}
 
 
 public:
@@ -98,11 +120,6 @@ public:
 	}
 };
 
-int main() {
-	std::ifstream in(LR"(C:\Users\PC\Desktop\aclImdb\test\neg\3750_2.txt)");
-	if (in.is_open()) {
-		std::cout << (char)in.get();
-	}
-	in.close();
+int main() {	
 	return 0;
 }
