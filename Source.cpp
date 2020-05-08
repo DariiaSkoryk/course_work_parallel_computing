@@ -57,7 +57,19 @@ private:
 	int indexOfPath;
 
 	void parseNextBlock() {
-		
+		std::string currentWord;
+		while (dictionary.size < blockSize && indexOfPath < path.size()) {
+			std::ifstream inputFile(path[indexOfPath]);
+			indexOfPath++;
+			while (!inputFile.eof()) {
+				inputFile >> currentWord;
+				for (auto& entry : currentWord) {
+					tolower(entry);
+				}
+				dictionary.insert(std::make_pair(currentWord, dictionary.size()));
+			}
+			inputFile.close();
+		}
 	}
 
 	void writeIndex() {
