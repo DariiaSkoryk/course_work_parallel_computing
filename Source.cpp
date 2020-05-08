@@ -22,7 +22,31 @@ private:
 		std::vector<std::wstring> getFileNames() {
 			std::vector<std::wstring> result;
 
-			
+			if (this->directory.length() != 0) {
+				const WCHAR* fileName{ this->directory.c_str() };
+				WIN32_FIND_DATA findFileData;
+				HANDLE fileHandle{ FindFirstFile(fileName, &findFileData) };
+				int fileNumber{ 1 };
+				BOOL fileFound{ true };
+				while (fileNumber < this->fromFile && fileFound) {
+					fileFound = FindNextFile(fileHandle, &findFileData);
+					fileNumber++;
+				}
+				if (this->toFile) {
+					while (fileNumber < this->toFile && fileFound) {
+						fileFound = FindNextFile(fileHandle, &findFileData);
+						result.push_back(findFileData.cFileName);
+						fileNumber++;
+					}
+				}
+				else {
+					while (fileFound) {
+						fileFound = FindNextFile(fileHandle, &findFileData);
+						result.push_back(findFileData.cFileName);
+						fileNumber++;
+					}
+				}
+			}
 			return std::move(result);
 		}
 	};
