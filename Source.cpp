@@ -7,58 +7,39 @@
 
 class Indexer {
 private:
-	struct Consideration {
-		const std::wstring directory;
-		const int fromFile;
-		const int toFile;
-
-		Consideration(std::wstring directory, int fromFile, int toFile)
-			:	directory{directory}, 
-				fromFile{fromFile}, 
-				toFile{toFile}
-		{
-		}
-
-		std::vector<std::wstring> getFileNames() {
-			std::vector<std::wstring> result;
-
-			if (this->directory.length() != 0) {
-				const WCHAR* fileName{ this->directory.c_str() };
-				WIN32_FIND_DATA findFileData;
-				HANDLE fileHandle{ FindFirstFile(fileName, &findFileData) };
-				int fileNumber{ 1 };
-				BOOL fileFound{ true };
-				while (fileNumber < this->fromFile && fileFound) {
-					fileFound = FindNextFile(fileHandle, &findFileData);
-					fileNumber++;
-				}
-				if (this->toFile) {
-					while (fileNumber < this->toFile && fileFound) {
-						fileFound = FindNextFile(fileHandle, &findFileData);
-						result.push_back(findFileData.cFileName);
-						fileNumber++;
-					}
-				}
-				else {
-					while (fileFound) {
-						fileFound = FindNextFile(fileHandle, &findFileData);
-						result.push_back(findFileData.cFileName);
-						fileNumber++;
-					}
-				}
-			}
-			return std::move(result);
-		}
-	};
 	
 	const int blockSize;
 	std::map<std::string, std::vector<int>> dictionary;
-	std::vector<std::wstring> path;
-	int indexOfPath;
 
-	void parseNextBlock() {
+	void getFileNames(std::wstring &directory, std::vector<std::wstring> &fileNames) {
+		if (directory.length() != 0) {
+			if (directory.back() != L'\\') {
+				directory += L'\\';
+			}
+			std::wstring directoryCopy{directory + L'*' };
+			WIN32_FIND_DATA findFileData;
+			HANDLE fileHandle{ FindFirstFile(directoryCopy.c_str(), &findFileData) };
+			BOOL fileFound{ true };
+			fileFound = FindNextFile(fileHandle, &findFileData);
+			while (fileFound) {
+				fileFound = FindNextFile(fileHandle, &findFileData);
+				if (findFileData.cFileName[0] != L'.') {
+					if (findFileData.dwFileAttributes == FILE_ATTRIBUTE_DIRECTORY) {
+						directoryCopy = directory + findFileData.cFileName + L'\\';
+						getFileNames(directoryCopy, fileNames);
+					}
+					else {
+						fileNames.push_back(directory + findFileData.cFileName);
+					}
+				}
+			}
+		}
+	}
+
+	int parseNextBlock(std::vector<std::wstring> path, int index) {
 		std::string currentWord;
-		while (dictionary.size < blockSize && indexOfPath < path.size()) {
+		int indexOfPath;
+		while (dictionary.size() < blockSize && indexOfPath < path.size()) {
 			std::ifstream inputFile(path[indexOfPath]);
 			indexOfPath++;
 			while (!inputFile.eof()) {
@@ -70,14 +51,15 @@ private:
 			}
 			inputFile.close();
 		}
+		return indexOfPath;
 	}
 
 	void writeIndex() {
 
 	}
 
-	void invert() {
-		std::sort(dictionary.begin, dictionary.end);
+	/*void invert() {
+		//std::sort(dictionary.begin, dictionary.end, [](std::pair<std::string, std::vector<int>> &first, std::pair<std::string, std::vector<int>> &second) {return (bool)first.first.compare(second.first); });
 		//We are searching from back to avoid iterator invalidation
 		//auto and decltype are used to avoid std::map<std::string, std::vector<int>> 
 
@@ -98,28 +80,34 @@ private:
 			//find another similar word
 			reverseFirstSimilarWord = std::adjacent_find(dictionary.rbegin(), dictionary.rend());
 		}
-	}
+	}*/
 
 
 public:
+	Indexer()
+		:blockSize{65536}
+	{
 
-	void BSBI(std::initializer_list<Consideration> filesInConsideration) {
-		
+	}
+
+	void BSBI(std::initializer_list<std::wstring> directory) {
+		//parseNextBlock();
+
 	}
 
 	void search(std::string word) {
 
 	}
-	
-	Consideration addToConsideration(std::wstring directory) {
-		return std::move(Consideration(directory, 0, 0));
-	}
 
-	Consideration addToConsideration(std::wstring directory, int fromFile, int toFile) {
-		return std::move(Consideration(directory, fromFile, toFile));
+	void DEBUG() {
+		std::wstring str{ LR"(C:\Users\PC\Desktop\testdir)" };
+		std::vector<std::wstring> fileNames;
+		getFileNames(str, fileNames);
 	}
 };
 
-int main() {	
+int main() {
+	Indexer indexer{};
+	indexer.DEBUG();
 	return 0;
 }
