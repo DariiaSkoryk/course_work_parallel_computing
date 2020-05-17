@@ -8,10 +8,19 @@
 class Indexer {
 private:
 	
-	const int blockSize;
-	std::map<std::string, std::vector<int>> dictionary;
+	const unsigned long long blockSize;
 
-	void getFileNames(std::wstring &directory, std::vector<std::wstring> &fileNames) {
+	//WINAPI
+	//OK
+	size_t getAvailableVirtualMemory() {
+		MEMORYSTATUSEX memoryStatus;
+		memoryStatus.dwLength = sizeof(memoryStatus);
+		GlobalMemoryStatusEx(&memoryStatus);
+		return memoryStatus.ullAvailVirtual;
+	}
+
+	//OK
+	void getFileNames(std::wstring &directory, std::vector<std::pair<std::wstring, unsigned long long>> &fileNames) {
 		if (directory.length() != 0) {
 			if (directory.back() != L'\\') {
 				directory += L'\\';
@@ -29,35 +38,60 @@ private:
 						getFileNames(directoryCopy, fileNames);
 					}
 					else {
-						fileNames.push_back(directory + findFileData.cFileName);
+						fileNames.push_back(std::make_pair(directory + findFileData.cFileName,
+							(static_cast<unsigned long long>(MAXDWORD) + 1)* findFileData.nFileSizeHigh + findFileData.nFileSizeLow));
 					}
 				}
 			}
 		}
 	}
 
-	int parseNextBlock(std::vector<std::wstring> path, int index) {
-		std::string currentWord;
-		int indexOfPath;
-		while (dictionary.size() < blockSize && indexOfPath < path.size()) {
-			std::ifstream inputFile(path[indexOfPath]);
-			indexOfPath++;
-			while (!inputFile.eof()) {
-				inputFile >> currentWord;
-				for (auto& entry : currentWord) {
-					tolower(entry);
-				}
-				dictionary.insert(std::make_pair(currentWord, dictionary.size()));
-			}
-			inputFile.close();
-		}
-		return indexOfPath;
+	//OK
+	unsigned long long getFileSize(std::wstring path) {
+		WIN32_FIND_DATA findFileData;
+		HANDLE fileHandle{ FindFirstFile(path.c_str(), &findFileData) };
+		return (static_cast<unsigned long long>(MAXDWORD) + 1)* findFileData.nFileSizeHigh + findFileData.nFileSizeLow;
 	}
 
+	//C++11
+	//OK (only for ENG)
+	void tolower(std::string &word) {
+		for (int i = 0; i < word.length(); i++) {
+			if (word[i] >= 'A' && word[i] <= 'Z') {
+				word[i] += 'A' - 'a';
+			}
+		}
+	}
+
+	//CHECK ME
+	auto parseNextBlock(std::vector<std::wstring> fileNames, int index) {
+		std::map<std::string, std::vector<int>> dictionary;
+		std::string currentWord;
+		int currentSize{ 0 };
+		auto nextFileSize{ getFileSize(fileNames[index]) };
+
+		while (index < fileNames.size() && currentSize + nextFileSize < blockSize) {
+			std::ifstream inputFile(fileNames[index]);
+			
+			while (!inputFile.eof()) {
+				inputFile >> currentWord;
+				tolower(currentWord);
+				dictionary.insert(std::make_pair(currentWord, dictionary.size()));
+			}
+
+			inputFile.close();
+			currentSize += nextFileSize;
+			index++;
+		}
+		return dictionary;
+	}
+
+	//WRITE ME
 	void writeIndex() {
 
 	}
 
+	//FIX ME
 	/*void invert() {
 		//std::sort(dictionary.begin, dictionary.end, [](std::pair<std::string, std::vector<int>> &first, std::pair<std::string, std::vector<int>> &second) {return (bool)first.first.compare(second.first); });
 		//We are searching from back to avoid iterator invalidation
@@ -85,24 +119,25 @@ private:
 
 public:
 	Indexer()
-		:blockSize{65536}
+		:blockSize{getAvailableVirtualMemory() / 2 }	//other memory for saved structure and other operations
 	{
 
 	}
 
+	//WRITE ME
 	void BSBI(std::initializer_list<std::wstring> directory) {
 		//parseNextBlock();
 
 	}
 
+	//WRITE ME
 	void search(std::string word) {
 
 	}
 
+	//DELETE ME
 	void DEBUG() {
-		std::wstring str{ LR"(C:\Users\PC\Desktop\testdir)" };
-		std::vector<std::wstring> fileNames;
-		getFileNames(str, fileNames);
+		
 	}
 };
 
