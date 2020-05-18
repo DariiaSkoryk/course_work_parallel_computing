@@ -4,23 +4,25 @@
 #include <map>
 #include <algorithm>
 #include <Windows.h>
+#include <thread>
+#include <string>
 
 class Indexer {
 private:
-	
+	std::vector<std::wstring> fileNames;
 	const unsigned long long blockSize;
 
 	//WINAPI
 	//OK
-	size_t getAvailableVirtualMemory() {
+	auto getAvailableVirtualMemory() {
 		MEMORYSTATUSEX memoryStatus;
 		memoryStatus.dwLength = sizeof(memoryStatus);
 		GlobalMemoryStatusEx(&memoryStatus);
-		return memoryStatus.ullAvailVirtual;
+		return static_cast<unsigned long long>(memoryStatus.ullAvailVirtual);
 	}
 
 	//OK
-	void getFileNames(std::wstring &directory, std::vector<std::pair<std::wstring, unsigned long long>> &fileNames) {
+	void getFileNames(std::wstring &directory) {
 		if (directory.length() != 0) {
 			if (directory.back() != L'\\') {
 				directory += L'\\';
@@ -35,11 +37,10 @@ private:
 				if (findFileData.cFileName[0] != L'.') {
 					if (findFileData.dwFileAttributes == FILE_ATTRIBUTE_DIRECTORY) {
 						directoryCopy = directory + findFileData.cFileName + L'\\';
-						getFileNames(directoryCopy, fileNames);
+						getFileNames(directoryCopy);
 					}
 					else {
-						fileNames.push_back(std::make_pair(directory + findFileData.cFileName,
-							(static_cast<unsigned long long>(MAXDWORD) + 1)* findFileData.nFileSizeHigh + findFileData.nFileSizeLow));
+						fileNames.push_back(directory + findFileData.cFileName);
 					}
 				}
 			}
@@ -56,32 +57,58 @@ private:
 	//C++11
 	//OK (only for ENG)
 	void tolower(std::string &word) {
-		for (int i = 0; i < word.length(); i++) {
+		for (unsigned int i = 0; i < word.length(); i++) {
 			if (word[i] >= 'A' && word[i] <= 'Z') {
-				word[i] += 'A' - 'a';
+				word[i] += 'a' - 'A';
 			}
 		}
 	}
 
-	//CHECK ME
-	auto parseNextBlock(std::vector<std::wstring> fileNames, int index) {
-		std::map<std::string, std::vector<int>> dictionary;
-		std::string currentWord;
-		int currentSize{ 0 };
-		auto nextFileSize{ getFileSize(fileNames[index]) };
+	
+	//OK && CAN BE OPTIMIZED
+	auto ignorePunctuation(std::string & data) {
+		static const std::string availableCharacters{"abcdefghijklmnopqrstuvwzyz0123456789"};
+		std::vector<std::string> words;
+		auto firstPosition{ data.find_first_of(availableCharacters) };
+		auto lastPosition{ data.find_first_not_of(availableCharacters, firstPosition) };
+		while (firstPosition != std::string::npos) {
+			words.push_back(std::move(data.substr(firstPosition, lastPosition - firstPosition)));
+			firstPosition = data.find_first_of(availableCharacters, lastPosition);
+			lastPosition = data.find_first_not_of(availableCharacters, firstPosition);
+		}
+		return words;
+		
+	}
 
-		while (index < fileNames.size() && currentSize + nextFileSize < blockSize) {
-			std::ifstream inputFile(fileNames[index]);
-			
+	//OK
+	auto parseNextInvertedBlock(unsigned int indexOfFile) {
+		std::map < std::string, std::vector<std::pair<size_t, size_t>>> dictionary;
+		std::string inputData;
+		unsigned long long currentSize{ 0 };
+		auto nextFileSize{ getFileSize(fileNames[indexOfFile]) };
+
+		while (indexOfFile < fileNames.size() && currentSize + nextFileSize < blockSize) {
+			int wordNumber{ 0 };
+			std::ifstream inputFile(fileNames[indexOfFile]);
+			std::thread inProcess([]() {});
 			while (!inputFile.eof()) {
-				inputFile >> currentWord;
-				tolower(currentWord);
-				dictionary.insert(std::make_pair(currentWord, dictionary.size()));
+				std::getline(inputFile, inputData);
+				inProcess.join();
+				std::thread addToDictionary([this, &inputData, &dictionary, indexOfFile, &wordNumber]() {
+					tolower(inputData);
+					auto words = ignorePunctuation(inputData);
+					for (auto& entry : words) {
+						wordNumber++;
+						dictionary[entry].push_back(std::make_pair(indexOfFile, wordNumber));
+					}
+				});
+				inProcess = std::move(addToDictionary);
 			}
+			inProcess.join();
 
 			inputFile.close();
 			currentSize += nextFileSize;
-			index++;
+			indexOfFile++;
 		}
 		return dictionary;
 	}
@@ -91,32 +118,6 @@ private:
 
 	}
 
-	//FIX ME
-	/*void invert() {
-		//std::sort(dictionary.begin, dictionary.end, [](std::pair<std::string, std::vector<int>> &first, std::pair<std::string, std::vector<int>> &second) {return (bool)first.first.compare(second.first); });
-		//We are searching from back to avoid iterator invalidation
-		//auto and decltype are used to avoid std::map<std::string, std::vector<int>> 
-
-		auto reverseFirstSimilarWord{ std::adjacent_find(dictionary.rbegin(), dictionary.rend()) };
-		decltype(reverseFirstSimilarWord) reverseLastSimilarWord;
-
-		while (reverseFirstSimilarWord != dictionary.rend()) {			
-			reverseLastSimilarWord = std::make_reverse_iterator(dictionary.find(reverseFirstSimilarWord->first));
-			
-			//I don`t know if this loop works correctly. TEST IT !!!
-			for (auto &entry = reverseFirstSimilarWord; entry != reverseLastSimilarWord; entry++) {
-				//remember position of this word
-				reverseLastSimilarWord->second.push_back(entry->second.at(0));
-			}
-
-			//delete similar words from list except one
-			dictionary.erase((reverseLastSimilarWord - 1).base(), reverseFirstSimilarWord.base());
-			//find another similar word
-			reverseFirstSimilarWord = std::adjacent_find(dictionary.rbegin(), dictionary.rend());
-		}
-	}*/
-
-
 public:
 	Indexer()
 		:blockSize{getAvailableVirtualMemory() / 2 }	//other memory for saved structure and other operations
@@ -124,22 +125,23 @@ public:
 
 	}
 
-	//WRITE ME
-	void BSBI(std::initializer_list<std::wstring> directory) {
-		//parseNextBlock();
-
-	}
-
-	//WRITE ME
-	void search(std::string word) {
-
-	}
-
 	//DELETE ME
 	void DEBUG() {
+		setlocale(0, "");
+		std::wstring d{ LR"(C:\Users\PC\Desktop\Важна інфа\3 курс\2 sem\ПО\aclImdb)" };
+		getFileNames(d);
 		
+		auto f{ parseNextInvertedBlock(0) };
+		for (const auto& entry : f) {
+			std::cout << entry.first << "\t" << std::endl;
+		}
+		std::wcout << fileNames[f.rbegin()->second[0].first];
 	}
 };
+
+void f(int a, std::string& b, int& c) {
+	std::cout << b;
+}
 
 int main() {
 	Indexer indexer{};
