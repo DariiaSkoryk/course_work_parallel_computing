@@ -65,8 +65,35 @@ private:
 	}
 
 	
-	//OK && CAN BE OPTIMIZED
+	//OK && OPTIMIZED
 	auto ignorePunctuation(std::string & data) {
+		std::vector<std::string> words;
+		size_t fromPosition = 0;
+		size_t countOfLetters = 0;
+		size_t dataLength = data.length();
+		for (size_t i = 0; i < dataLength; i++) {
+			if (data[i] >= 'A' && data[i] <= 'Z') {
+				data[i] += 'a' - 'A';
+				if (!countOfLetters) {
+					fromPosition = i;
+				}
+				countOfLetters++;
+			}
+			else if ((data[i] >= 'a' && data[i] <= 'z') || (data[i] >= '0' && data[i] <= '9')) {
+				if (!countOfLetters) {
+					fromPosition = i;
+				}
+				countOfLetters++;
+			}
+			else if (countOfLetters) {
+				words.push_back(data.substr(fromPosition, countOfLetters));
+				countOfLetters = 0;
+			}
+		}
+		return words;
+	}
+	//OK && NOT OPTIMIZED BUT SHORT
+	auto ignorePunctuationA(std::string & data) {
 		static const std::string availableCharacters{"abcdefghijklmnopqrstuvwzyz0123456789"};
 		std::vector<std::string> words;
 		auto firstPosition{ data.find_first_of(availableCharacters) };
@@ -77,11 +104,10 @@ private:
 			lastPosition = data.find_first_not_of(availableCharacters, firstPosition);
 		}
 		return words;
-		
 	}
 
 	//OK
-	auto parseNextInvertedBlock(unsigned int indexOfFile) {
+	auto parseNextInvertedBlock(size_t indexOfFile) {
 		std::map < std::string, std::vector<std::pair<size_t, size_t>>> dictionary;
 		std::string inputData;
 		unsigned long long currentSize{ 0 };
@@ -137,11 +163,13 @@ public:
 		}
 		std::wcout << fileNames[f.rbegin()->second[0].first];
 	}
-};
 
-void f(int a, std::string& b, int& c) {
-	std::cout << b;
-}
+	//WRITE ME
+	auto findWord() {
+		std::vector<std::pair<size_t, size_t>> result;
+		return result;
+	}
+};
 
 int main() {
 	Indexer indexer{};
