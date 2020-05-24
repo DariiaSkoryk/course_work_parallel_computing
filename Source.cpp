@@ -9,8 +9,88 @@
 
 class Indexer {
 private:
+	template <typename FIRST_TYPE, typename SECOND_TYPE, typename THIRD_TYPE>
+	struct triple{
+		FIRST_TYPE first;
+		SECOND_TYPE second;
+		THIRD_TYPE third;
+	};
+
+	template <typename T>
+	struct Word {
+		std::string word;
+		T position;
+
+		bool operator<(Word &anotherWord) {
+			return compare(anotherWord);
+		}
+
+		bool operator>(Word& anotherWord) {
+			bool returnValue;
+			size_t index{ 0 };
+			auto thisWordLength = word.length();
+			auto anotherWordLength = anotherWord.word.length();
+			while ((index < thisWordLength) && (index < anotherWordLength) && this->word[index] == anotherWord.word[index]) {
+				index++;
+			}
+			if (thisWordLength() == index || anotherWordLength == index) {
+				returnValue = thisWordLength > anotherWordLength;
+			}
+			else {
+				returnValue = word[index] > anotherWord.word[index];
+			}
+			return returnValue;
+		}
+
+		bool operator==(Word& anotherWord) {
+			bool returnValue;
+			size_t index{ 0 };
+			auto thisWordLength = word.length();
+			auto anotherWordLength = anotherWord.word.length();
+			while ((index < thisWordLength) && (index < anotherWordLength) && this->word[index] == anotherWord.word[index]) {
+				index++;
+			}
+			if (thisWordLength() == index || anotherWordLength == index) {
+				returnValue = thisWordLength == anotherWordLength;
+			}
+			else {
+				returnValue = word[index] == anotherWord.word[index];
+			}
+			return returnValue;
+		}
+	private:
+		//count of symbols must be less than 127
+		auto compare(Word& anotherWord) {
+			char returnValue;
+			size_t index{ 0 };
+			auto thisWordLength = word.length();
+			auto anotherWordLength = anotherWord.word.length();
+			while ((index < thisWordLength) && (index < anotherWordLength) && this->word[index] == anotherWord.word[index]) {
+				index++;
+			}
+			if (thisWordLength() == index || anotherWordLength == index) {
+				returnValue = thisWordLength - anotherWordLength;
+			}
+			else {
+				returnValue = word[index] - anotherWord.word[index];
+			}
+			return returnValue;
+		}
+	};
+
+	struct Dictionary {
+		std::vector<std::pair<std::string, triple<size_t, size_t, size_t>>> g;
+		
+		std::string operator[](int i) {
+			return g[i].first;
+		}
+
+		bool operator<(std::pair)
+	};
+
 	std::vector<std::wstring> fileNames;
 	const unsigned long long blockSize;
+	char countOfThreads;
 
 	//WINAPI
 	//OK
@@ -55,92 +135,112 @@ private:
 	}
 
 	//C++11
-	//OK (only for ENG)
-	void tolower(std::string &word) {
-		for (unsigned int i = 0; i < word.length(); i++) {
-			if (word[i] >= 'A' && word[i] <= 'Z') {
-				word[i] += 'a' - 'A';
-			}
-		}
-	}
-
-	
 	//OK && OPTIMIZED
-	auto ignorePunctuation(std::string & data) {
-		std::vector<std::string> words;
-		size_t fromPosition = 0;
-		size_t countOfLetters = 0;
-		size_t dataLength = data.length();
-		for (size_t i = 0; i < dataLength; i++) {
-			if (data[i] >= 'A' && data[i] <= 'Z') {
-				data[i] += 'a' - 'A';
-				if (!countOfLetters) {
-					fromPosition = i;
-				}
-				countOfLetters++;
-			}
-			else if ((data[i] >= 'a' && data[i] <= 'z') || (data[i] >= '0' && data[i] <= '9')) {
-				if (!countOfLetters) {
-					fromPosition = i;
-				}
-				countOfLetters++;
-			}
-			else if (countOfLetters) {
-				words.push_back(data.substr(fromPosition, countOfLetters));
-				countOfLetters = 0;
-			}
+	auto getWords(std::vector<triple<size_t, size_t, std::string>>& block, size_t fromPosition = 0, size_t toPosition = 0) {
+		std::map<size_t, std::vector<std::vector<std::string>>> words;
+		if (!toPosition) {
+			toPosition = block.size();
 		}
-		return words;
-	}
-	//OK && NOT OPTIMIZED BUT SHORT
-	auto ignorePunctuationA(std::string & data) {
-		static const std::string availableCharacters{"abcdefghijklmnopqrstuvwzyz0123456789"};
-		std::vector<std::string> words;
-		auto firstPosition{ data.find_first_of(availableCharacters) };
-		auto lastPosition{ data.find_first_not_of(availableCharacters, firstPosition) };
-		while (firstPosition != std::string::npos) {
-			words.push_back(std::move(data.substr(firstPosition, lastPosition - firstPosition)));
-			firstPosition = data.find_first_of(availableCharacters, lastPosition);
-			lastPosition = data.find_first_not_of(availableCharacters, firstPosition);
+		std::string data;
+		for (auto i = fromPosition; i < toPosition; i++) {
+			data = std::move(block[i].second);
+			size_t fromStringPosition = 0;
+			size_t countOfLetters = 0;
+			size_t dataLength = data.length();
+			for (size_t j = 0; j < dataLength; j++) {
+				if (data[j] >= 'A' && data[j] <= 'Z') {
+					data[j] += 'a' - 'A';
+					if (!countOfLetters) {
+						fromStringPosition = j;
+					}
+					countOfLetters++;
+				}
+				else if ((data[j] >= 'a' && data[j] <= 'z') || (data[j] >= '0' && data[j] <= '9')) {
+					if (!countOfLetters) {
+						fromStringPosition = j;
+					}
+					countOfLetters++;
+				}
+				else if (countOfLetters) {
+					words[block[i].first].push_back(data.substr(fromStringPosition, countOfLetters));
+					countOfLetters = 0;
+				}
+			}
 		}
 		return words;
 	}
 
-	//OK
-	auto parseNextInvertedBlock(size_t indexOfFile) {
-		std::map < std::string, std::vector<std::pair<size_t, size_t>>> dictionary;
+	//OR && TAKES ABOUT 30 SECONDS ON TEST DATA
+	auto parseNextBlock(size_t &indexOfFile) {
+		std::vector <std::pair<size_t, std::string>> block;
 		std::string inputData;
 		unsigned long long currentSize{ 0 };
 		auto nextFileSize{ getFileSize(fileNames[indexOfFile]) };
 
 		while (indexOfFile < fileNames.size() && currentSize + nextFileSize < blockSize) {
-			int wordNumber{ 0 };
 			std::ifstream inputFile(fileNames[indexOfFile]);
-			std::thread inProcess([]() {});
-			while (!inputFile.eof()) {
+			size_t lineNumber{ 1 };
+			if (!inputFile.eof()) {
 				std::getline(inputFile, inputData);
-				inProcess.join();
-				std::thread addToDictionary([this, &inputData, &dictionary, indexOfFile, &wordNumber]() {
-					tolower(inputData);
-					auto words = ignorePunctuation(inputData);
-					for (auto& entry : words) {
-						wordNumber++;
-						dictionary[entry].push_back(std::make_pair(indexOfFile, wordNumber));
-					}
-				});
-				inProcess = std::move(addToDictionary);
+				block.push_back(std::make_pair(indexOfFile, std::move(inputData)));
+				while (!inputFile.eof()) {
+					std::getline(inputFile, inputData);
+					block.back().second += ' ' + inputData;
+				}
 			}
-			inProcess.join();
-
 			inputFile.close();
 			currentSize += nextFileSize;
 			indexOfFile++;
 		}
-		return dictionary;
+		return block;
 	}
 
 	//WRITE ME
+	void addToDictionary(std::vector<triple<size_t, size_t, std::string>>& block, size_t fromPosition = 0, size_t toPosition = 0) {
+
+	}
+
+	//void invert();
+
+	//WRITE ME
 	void writeIndex() {
+
+	}
+
+	void parallelIndexConstruntion() {
+		
+			std::vector<std::thread> threads{ std::thread([]() {}) };
+			std::cout << threads.capacity();
+			threads.reserve(countOfThreads - 1);
+			size_t indexOfFile{ 0 };
+			auto currentBlock{ parseNextBlock(indexOfFile) };
+			decltype(currentBlock) nextBlock;
+			while (indexOfFile < fileNames.size()) {
+				size_t fromPosition{ 0 };
+				size_t processingSize{ currentBlock.size() / (countOfThreads - 1) };
+				unsigned char rest{ currentBlock.size() % (countOfThreads - 1) };
+
+				//parallel computing
+				for (unsigned char i{ 0 }; i < countOfThreads; i++) {
+					//create a new thread
+					std::thread newThread([this, &currentBlock](size_t fromPosition, size_t toPosition) {
+						addToDictionary(currentBlock, fromPosition, toPosition);
+					}, fromPosition, fromPosition += (rest ? processingSize + 1 : processingSize));
+
+					if (rest) {
+						rest--;
+					}
+					threads.push_back(std::move(newThread));
+				}
+				//read from hdd in current thread to reduce positioning time
+				nextBlock = parseNextBlock(indexOfFile);
+
+
+
+			}
+	}
+
+	void serialIndexConstruction() {
 
 	}
 
@@ -148,20 +248,30 @@ public:
 	Indexer()
 		:blockSize{getAvailableVirtualMemory() / 2 }	//other memory for saved structure and other operations
 	{
+		countOfThreads = std::thread::hardware_concurrency();
+	}
 
+	void indexConstruction(std::wstring directory) {
+		getFileNames(directory);
+		if (countOfThreads > 1) {
+			parallelIndexConstruntion();
+		}
+		else {
+			serialIndexConstruction();
+		}
 	}
 
 	//DELETE ME
 	void DEBUG() {
 		setlocale(0, "");
 		std::wstring d{ LR"(C:\Users\PC\Desktop\Важна інфа\3 курс\2 sem\ПО\aclImdb)" };
-		getFileNames(d);
+		indexConstruction(d);
 		
-		auto f{ parseNextInvertedBlock(0) };
-		for (const auto& entry : f) {
+		//auto f{ parseNextBlock() };
+		/*for (const auto& entry : f) {
 			std::cout << entry.first << "\t" << std::endl;
-		}
-		std::wcout << fileNames[f.rbegin()->second[0].first];
+		}*/
+		//std::wcout << fileNames[f.rbegin()->second[0].first];
 	}
 
 	//WRITE ME
@@ -174,5 +284,6 @@ public:
 int main() {
 	Indexer indexer{};
 	indexer.DEBUG();
+	int cores_count = std::thread::hardware_concurrency();
 	return 0;
 }
