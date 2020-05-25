@@ -10,6 +10,9 @@
 
 class Indexer {
 private:
+	std::vector<std::wstring> fileNames;
+	const unsigned long long blockSize;
+	char maxCountOfThreads;
 
 	template <typename T>
 	struct Word {
@@ -108,12 +111,7 @@ private:
 		std::vector<Word<std::vector<std::pair<size_t, size_t>>>> dictionary;
 	};
 
-	std::vector<std::wstring> fileNames;
-	const unsigned long long blockSize;
-	//char countOfThreads;
-
 	//WINAPI
-	//OK
 	auto getAvailableVirtualMemory() {
 		MEMORYSTATUSEX memoryStatus;
 		memoryStatus.dwLength = sizeof(memoryStatus);
@@ -121,7 +119,6 @@ private:
 		return static_cast<unsigned long long>(memoryStatus.ullAvailVirtual);
 	}
 
-	//OK
 	void getFileNames(std::wstring &directory) {
 		if (directory.length() != 0) {
 			if (directory.back() != L'\\') {
@@ -147,7 +144,6 @@ private:
 		}
 	}
 
-	//OK
 	unsigned long long getFileSize(std::wstring path) {
 		WIN32_FIND_DATA findFileData;
 		HANDLE fileHandle{ FindFirstFile(path.c_str(), &findFileData) };
@@ -180,7 +176,6 @@ private:
 		return block;
 	}
 
-	//OK && OPTIMIZED
 	auto getWords(Block& block, size_t fromPosition = 0, size_t toPosition = 0) {
 		Dictionary words;
 		if (!toPosition) {
@@ -216,8 +211,6 @@ private:
 		return words;
 	}
 
-	//void invert();
-
 	//WRITE ME
 	void writeIndex() {
 
@@ -225,24 +218,52 @@ private:
 
 	//PARALLEL VARIANT
 	//TEST ME
-	size_t parallelBlockProcessing(Block &block, std::vector<Dictionary> &dictionaries, std::vector<std::thread> threads, unsigned char countOfThreads) {
-		//returns count of processed elements in block
+	void addWordsToDictionaries(Block& block, std::vector<Dictionary>& dictionaries, std::vector<std::thread>& threads, unsigned char countOfThreads) {
 		size_t fromPosition{ 0 };
 		size_t processingSize{ block.size() / (countOfThreads) };
 		unsigned char rest{ block.size() % (countOfThreads) };
 
-		for (unsigned char i{ 0 }; i < threads.size(); i++) {
+		for (unsigned char i{ 0 }; i < countOfThreads - 1; i++) {
 			std::thread newThread([this, &block, &dictionaries, i](size_t fromPosition, size_t toPosition) {
 				dictionaries[i] = std::move(getWords(block, fromPosition, toPosition));
 				dictionaries[i].invert();
 			}, fromPosition, fromPosition += (rest ? processingSize + 1 : processingSize));
-			
+
 			threads[i] = std::move(newThread);
 			if (rest) {
 				rest--;
 			}
 		}
-		return fromPosition;
+		dictionaries[countOfThreads - 1] = std::move(getWords(block, fromPosition, fromPosition += processingSize));
+		dictionaries[countOfThreads - 1].invert();
+		for (unsigned char i{ 0 }; i < countOfThreads - 1; i++) {
+			threads[i].join();
+		}
+	}
+
+	//WRITE ME
+	void mergeDictionaries(std::vector<Dictionary>& dictionaries, std::vector<std::thread>& threads, unsigned char countOfThreads) {
+		/*for (unsigned char i{ 1 }; i < countOfThreads / 2; i++) {
+			std::thread newThread([](Dictionary& firstDictionary, Dictionary& secondDictionary) {
+				//merge
+			}, dictionaries[i * 2], dictionaries[i * 2 + 1]);
+			threads[i] = std::move(newThread);
+		}*/
+	}
+
+	//TEST ME
+	void parallelBlockProcessing(Block &block, std::vector<Dictionary> &dictionaries, std::vector<std::thread> &threads, unsigned char countOfThreads) {
+		if (countOfThreads < maxCountOfThreads) {
+			std::thread newThread([&]() {
+				addWordsToDictionaries(block, dictionaries, threads, countOfThreads);
+				mergeDictionaries(dictionaries, threads, countOfThreads);
+			});
+			threads[countOfThreads - 1] = std::move(newThread);
+		}
+		else {
+			addWordsToDictionaries(block, dictionaries, threads, countOfThreads);
+			mergeDictionaries(dictionaries, threads, countOfThreads);
+		}
 	}
 
 	//TEST ME
@@ -259,26 +280,15 @@ private:
 		auto currentBlock{ parseNextBlock(indexOfFile) };
 		decltype(currentBlock) nextBlock;
 		while (indexOfFile < fileNames.size()) {
-			parallelBlockProcessing(currentBlock, dictionaries, threads, countOfThreads - 1);
+			parallelBlockProcessing(currentBlock, dictionaries, threads, countOfThreads - 1);//???
 			nextBlock = parseNextBlock(indexOfFile);
-			for (unsigned char i{ 0 }; i < countOfThreads - 1; i++) {
-				threads[i].join();
-			}
-			//merge
-			//write
-
+			threads.back().join();
+			//writeBlockToDisk
 			currentBlock = std::move(nextBlock);
 		}
-		auto fromPosition{ parallelBlockProcessing(currentBlock, dictionaries, threads, countOfThreads) };
-		auto dictionary = std::move(getWords(currentBlock, fromPosition, currentBlock.size()));
-		dictionary.invert();
-		for (unsigned char i{ 1 }; i < countOfThreads; i++) {
-			threads[i].join();
-		}
-		//mergeDictionaries
+		parallelBlockProcessing(currentBlock, dictionaries, threads, countOfThreads);
 		//writeBlockToDisk
-
-		//merge all files
+		//mergeBlocks
 	}
 
 	//SERIAL VARIANT
@@ -290,22 +300,20 @@ private:
 			block = parseNextBlock(indexOfFile);
 			dictionary = std::move(getWords(block));
 			dictionary.invert();
-			//write
+			//writeBlockToDisk
 		}
-		//merge all files
+		//mergeBlocks
 	}
 
 public:
-	Indexer(std::wstring directory)
+	Indexer(std::wstring directory, unsigned char maxCountOfThreads)
 		:blockSize{getAvailableVirtualMemory() / 4 }	//for saving two blocks and other structures at the same time
 	{
+		this->maxCountOfThreads = maxCountOfThreads;
 		getFileNames(directory);
-	}
 
-	//OK
-	void indexConstruction(unsigned char countOfThreads) {
-		if (countOfThreads > 1) {
-			parallelIndexConstruntion(countOfThreads);
+		if (maxCountOfThreads > 1) {
+			parallelIndexConstruntion(maxCountOfThreads);
 		}
 		else {
 			serialIndexConstruction();
@@ -321,30 +329,16 @@ public:
 	//DELETE ME
 	void DEBUG() {
 		
-		//indexConstruction(d);
-		std::vector<Word<int>> v{ {"fgh",4},{"dfg",4},{"sdf",4},{"asd",4} };
-		//v.shrink_to_fit();
-		std::cout << v.capacity();
-		auto a = std::move(v[3]);
-		std::cout << v.size();
-		std::cout << a.word;
-		for (auto i : v) {
-			std::cout << i.word << '\n';
-		}
-		//auto f{ parseNextBlock() };
-		/*for (const auto& entry : f) {
-			std::cout << entry.first << "\t" << std::endl;
-		}*/
-		//std::wcout << fileNames[f.rbegin()->second[0].first];
 	}
 };
 
 int main() {
 	setlocale(0, "");
-	Indexer indexer{ LR"(C:\Users\PC\Desktop\Важна інфа\3 курс\2 sem\ПО\aclImdb)" };
-	indexer.DEBUG();
-
-	int cores_count = std::thread::hardware_concurrency();
-
+	
+	unsigned char countOfCores = std::thread::hardware_concurrency();
+	for (; countOfCores; countOfCores--) {
+		Indexer indexer{ LR"(C:\Users\PC\Desktop\Важна інфа\3 курс\2 sem\ПО\aclImdb)", countOfCores };
+		indexer.DEBUG();
+	}
 	return 0;
 }
