@@ -10,51 +10,118 @@
 
 class Indexer {
 private:
-	std::vector<std::wstring> fileNames;
-	const unsigned long long blockSize;
-	char maxCountOfThreads;
+	//structs
 
-	template <typename T>
-	struct Word {
-		std::string word;
-		T position;
-
-		bool operator<(Word& anotherWord) {
+	struct Word : public std::string {
+		bool operator<(std::string& anotherWord) {
 			return compare(anotherWord) < 0;
 		}
 
-		bool operator>(Word& anotherWord) {
+		bool operator>(std::string& anotherWord) {
 			return compare(anotherWord) > 0;
 		}
 
-		bool operator==(Word& anotherWord) {
+		bool operator<=(std::string& anotherWord) {
+			return compare(anotherWord) <= 0;
+		}
+
+		bool operator>=(std::string& anotherWord) {
+			return compare(anotherWord) >= 0;
+		}
+
+		bool operator==(std::string& anotherWord) {
 			return compare(anotherWord) == 0;
 		}
 
-		Word(std::string word, T position) {
+		bool operator!=(std::string anotherWord) {
+			return compare(anotherWord) != 0;
+		}
+
+		Word() = default;
+
+		Word(std::string str)
+			:std::string(str)
+		{
+
+		};
+
+	private:
+		char compare(std::string& anotherWord) {
+			char returnValue;
+			size_t index{ 0 };
+			auto thisWordLength = length();
+			auto anotherWordLength = anotherWord.length();
+			while ((index < thisWordLength) && (index < anotherWordLength) && (*this)[index] == anotherWord[index]) {
+				index++;
+			}
+			if (thisWordLength == index || anotherWordLength == index) {
+				returnValue = thisWordLength > anotherWordLength ? 1 : thisWordLength == anotherWordLength ? 0 : -1;
+			}
+			else {
+				returnValue = (*this)[index] - anotherWord[index];
+			}
+			return returnValue;
+		}
+	};
+
+	struct WordInfo {
+		Word word;
+		std::vector<std::pair<size_t, size_t>> position;
+
+		bool operator<(WordInfo& anotherWord) {
+			return word < anotherWord.word;
+		}
+
+		bool operator>(WordInfo& anotherWord) {
+			return word > anotherWord.word;
+		}
+
+		bool operator<=(WordInfo& anotherWord) {
+			return word <= anotherWord.word;
+		}
+
+		bool operator>=(WordInfo& anotherWord) {
+			return word >= anotherWord.word;
+		}
+
+		bool operator==(WordInfo& anotherWord) {
+			return word == anotherWord.word;
+		}
+
+		bool operator!=(WordInfo& anotherWord) {
+			return word != anotherWord.word;
+		}
+
+		bool operator<(std::string& anotherWord) {
+			return word < anotherWord;
+		}
+
+		bool operator>(std::string& anotherWord) {
+			return word > anotherWord;
+		}
+
+		bool operator<=(std::string& anotherWord) {
+			return word <= anotherWord;
+		}
+
+		bool operator>=(std::string& anotherWord) {
+			return word >= anotherWord;
+		}
+
+		bool operator==(std::string& anotherWord) {
+			return word == anotherWord;
+		}
+
+		bool operator!=(std::string& anotherWord) {
+			return word != anotherWord;
+		}
+
+		WordInfo(std::string word, std::vector<std::pair<size_t, size_t>> position) {
 			this->word = word;
 			this->position = position;
 		}
 
-		Word() = default;
-	private:
-		//count of symbols must be less than 127
-		char compare(Word& anotherWord) {
-			char returnValue;
-			size_t index{ 0 };
-			auto thisWordLength = word.length();
-			auto anotherWordLength = anotherWord.word.length();
-			while ((index < thisWordLength) && (index < anotherWordLength) && this->word[index] == anotherWord.word[index]) {
-				index++;
-			}
-			if (thisWordLength == index || anotherWordLength == index) {
-				returnValue = thisWordLength - anotherWordLength;
-			}
-			else {
-				returnValue = word[index] - anotherWord.word[index];
-			}
-			return returnValue;
-		}
+		WordInfo() = default;
 	};
 
 	struct Block {
@@ -80,38 +147,91 @@ private:
 	};
 
 	struct Dictionary {
-		auto operator[](size_t i) {
-			return dictionary[i];
+		auto& operator[](size_t i) {
+			return dictionary.at(i);
+		}
+
+		auto begin() {
+			return dictionary.cbegin();
+		}
+
+		auto end() {
+			return dictionary.cend();
 		}
 
 		auto size() {
 			return dictionary.size();
 		}
 
+		//TEST ME
 		void invert() {
 			std::sort(dictionary.begin(), dictionary.end());
+			size_t fromPosition;
+			size_t toPosition{ dictionary.size() - 1 };
+			while (toPosition > 0) {
+				if (dictionary[toPosition] == dictionary[toPosition - 1]) {
+					//find interval
+					fromPosition = toPosition - 1;
+					while (fromPosition && dictionary[fromPosition] == dictionary[fromPosition - 1]) {
+						fromPosition--;
+					}
+					//add all positions to one vector
+					for (size_t i{ fromPosition + 1 }; i <= toPosition; i++) {
+						dictionary[fromPosition].position.push_back(std::move(dictionary[i].position[0]));
+					}
+					//delete other vectord
+					auto iteratorFrom{ std::next(dictionary.cbegin(), fromPosition + 1) };
+					auto iteratorTo{ std::next(dictionary.cbegin(), toPosition + 1) };
+					dictionary.erase(iteratorFrom, iteratorTo);
+					toPosition = fromPosition - 1;
+				}
+				else {
+					toPosition--;
+				}
+			}
 		}
 
 		void push_back(std::string word, size_t indexOfFile, size_t positionInFile) {
-			dictionary.push_back({ word, {std::make_pair(indexOfFile, positionInFile)}});
+			dictionary.push_back({ word, {std::make_pair(indexOfFile, positionInFile)} });
 		}
-		
+
 		void clear() {
 			dictionary.clear();
 		}
 
-		/*void push_back(Dictionary dictionary) {
-			this->dictionary.resize(this->dictionary.size() + dictionary.size());
-			while (dictionary.size()) {
-				//this->dictionary.push_back(dictionary.);
-			}
-		}*/
-		
 	private:
-		std::vector<Word<std::vector<std::pair<size_t, size_t>>>> dictionary;
+		std::vector<WordInfo> dictionary;
+
+		void invert(int from, int to) {							//done
+			int left = from, right = to, middle = (left + right) / 2;
+			while (left <= right) {
+				while (dictionary[left] < dictionary[middle]) {
+					left++;
+				}
+				while (dictionary[right] > dictionary[middle]) {
+					right--;
+				}
+				if (left <= right) {
+					std::swap(dictionary[left], dictionary[right]);
+					left++;
+					right--;
+				}
+			}
+			if (left < to)
+				invert(left, to);
+			if (from < right)
+				invert(from, right);
+		}
 	};
 
+	//constants and variables
+
+	const unsigned long long blockSize;
+	std::vector<std::wstring> fileNames;
+	char maxCountOfThreads;
+
 	//WINAPI
+
 	auto getAvailableVirtualMemory() {
 		MEMORYSTATUSEX memoryStatus;
 		memoryStatus.dwLength = sizeof(memoryStatus);
@@ -151,7 +271,8 @@ private:
 	}
 
 	//C++11
-	//OK && TAKES ABOUT 30 SECONDS ON TEST DATA
+
+	//	input from file (TAKES ABOUT 30 SECONDS ON TEST DATA)
 	auto parseNextBlock(size_t &indexOfFile) {
 		Block block;
 		std::string inputData;
@@ -176,6 +297,81 @@ private:
 		return block;
 	}
 
+	//	input from file && output to file
+	bool mergeBlocks(size_t countOfBlocks) {
+		std::ofstream fout("index");
+		bool returnValue{ fout.is_open() };
+		if (returnValue) {
+			if (countOfBlocks > 1) {
+				std::vector<std::ifstream> block;
+				block.resize(countOfBlocks);
+				for (size_t i{ 0 }; i < countOfBlocks; i++) {
+					block[i].open("data" + i);
+					if (block[i].eof()) {
+						block[i] = std::move(block.back());
+						block.pop_back();
+					}
+					if (!block[i].is_open()) {
+						returnValue = false;
+					}
+				}
+				if (returnValue) {
+					std::vector<Word> word;
+					Word previousWord{ "" };
+					word.resize(block.size());
+					for (size_t i{ 0 }; i < word.size(); i++) {
+						block[i] >> word[i];
+					}
+
+					size_t index;
+					while (!block.empty()) {
+						//find minimal word
+						index = 0;
+						for (size_t i{ 1 }; i < word.size(); i++) {
+							if (word[i] < word[index]) {
+								index = i;
+							}
+						}
+
+						//write minimal word
+						if (word[index] != previousWord) {
+							fout << std::endl << word[index];
+							previousWord = std::move(word[index]);
+						}
+						std::getline(block[index], word[index]);
+						fout << ' ' << word[index];
+						if (block[index].eof()) {
+							block[index].close();
+							block[index] = std::move(block.back());
+							block.pop_back();
+							word[index] = std::move(word[index]);
+							word.pop_back();
+						}
+						else {
+							block[index] >> word[index];
+						}
+					}
+				}
+			}
+			else {
+				std::ifstream fin("data0");
+				if (fin.is_open()) {
+					std::string line;
+					while (!fin.eof()) {
+						std::getline(fin, line);
+						fout << line;
+					}
+					fin.close();
+				}
+				else {
+					returnValue = false;
+				}
+			}
+			fout.close();
+		}
+		return returnValue;
+	}
+	
 	auto getWords(Block& block, size_t fromPosition = 0, size_t toPosition = 0) {
 		Dictionary words;
 		if (!toPosition) {
@@ -211,13 +407,55 @@ private:
 		return words;
 	}
 
-	//WRITE ME
-	void writeIndex() {
+	//PARALLEL VARIANT
 
+	void writeDictionaries(std::vector<Dictionary>& dictionaries, std::string outputFileName) {
+		//find count of words we shouls write
+		size_t remainingCount{ dictionaries[0].size() };
+		for (size_t i{ 1 }; i < dictionaries.size(); i++) {
+			remainingCount += dictionaries[i].size();
+		}
+
+		//create index for each dictionary
+		std::vector<size_t> index(0, dictionaries.size());
+
+		std::ofstream fout(outputFileName);
+		if (fout.is_open()) {
+			size_t current;
+			std::string previousWord{ "" };
+			fout << "Dictionary:";
+			while (remainingCount) {
+				//find minimal word to write
+				current = 0;
+				for (size_t i{ 1 }; i < dictionaries.size(); i++) {
+					if (dictionaries[i][index[i]] < dictionaries[current][index[current]]) {
+						current = i;
+					}
+				}
+
+				//write one word from current dictionary
+				if (dictionaries[current][index[current]] != previousWord) {
+					fout << std::endl << dictionaries[current][index[current]].word;
+					previousWord = std::move(dictionaries[current][index[current]].word);
+				}
+				for (const auto& entry : dictionaries[current][index[current]].position) {
+					fout << ' ' << entry.first << ' ' << entry.second;
+				}
+
+				index[current]++;
+				if (index[current] == dictionaries[current].size()) {
+					//delete element from back to avoid moving elements from current to last, it works faster 
+					dictionaries[current] = std::move(dictionaries.back());
+					dictionaries.pop_back();
+					index[current] = std::move(index.back());
+					index.pop_back();
+				}
+				remainingCount--;
+			}
+			fout.close();
+		}
 	}
 
-	//PARALLEL VARIANT
-	//TEST ME
 	void addWordsToDictionaries(Block& block, std::vector<Dictionary>& dictionaries, std::vector<std::thread>& threads, unsigned char countOfThreads) {
 		size_t fromPosition{ 0 };
 		size_t processingSize{ block.size() / (countOfThreads) };
@@ -241,68 +479,73 @@ private:
 		}
 	}
 
-	//WRITE ME
-	void mergeDictionaries(std::vector<Dictionary>& dictionaries, std::vector<std::thread>& threads, unsigned char countOfThreads) {
-		/*for (unsigned char i{ 1 }; i < countOfThreads / 2; i++) {
-			std::thread newThread([](Dictionary& firstDictionary, Dictionary& secondDictionary) {
-				//merge
-			}, dictionaries[i * 2], dictionaries[i * 2 + 1]);
-			threads[i] = std::move(newThread);
-		}*/
-	}
-
-	//TEST ME
 	void parallelBlockProcessing(Block &block, std::vector<Dictionary> &dictionaries, std::vector<std::thread> &threads, unsigned char countOfThreads) {
 		if (countOfThreads < maxCountOfThreads) {
 			std::thread newThread([&]() {
 				addWordsToDictionaries(block, dictionaries, threads, countOfThreads);
-				mergeDictionaries(dictionaries, threads, countOfThreads);
 			});
 			threads[countOfThreads - 1] = std::move(newThread);
 		}
 		else {
 			addWordsToDictionaries(block, dictionaries, threads, countOfThreads);
-			mergeDictionaries(dictionaries, threads, countOfThreads);
 		}
 	}
 
-	//TEST ME
 	void parallelIndexConstruntion(unsigned char countOfThreads) {
 		//	prepare threads and dictionaries for work
 		std::vector<std::thread> threads;
 		threads.resize(countOfThreads - 1);
 		std::vector<Dictionary> dictionaries;
-		dictionaries.resize(countOfThreads - 1);
+		dictionaries.resize(countOfThreads);
 
 		//	we are reading next block and processing current block at the same time
 		//	we`re reading from hdd in current thread to reduce positioning time
 		size_t indexOfFile{ 0 };
 		auto currentBlock{ parseNextBlock(indexOfFile) };
 		decltype(currentBlock) nextBlock;
+		size_t blockNumber{ 0 };
 		while (indexOfFile < fileNames.size()) {
 			parallelBlockProcessing(currentBlock, dictionaries, threads, countOfThreads - 1);//???
 			nextBlock = parseNextBlock(indexOfFile);
 			threads.back().join();
-			//writeBlockToDisk
+			writeDictionaries(dictionaries, "data" + blockNumber);
+			blockNumber++;
 			currentBlock = std::move(nextBlock);
 		}
 		parallelBlockProcessing(currentBlock, dictionaries, threads, countOfThreads);
-		//writeBlockToDisk
-		//mergeBlocks
+		writeDictionaries(dictionaries, "data" + blockNumber);
+		mergeBlocks(blockNumber);
 	}
 
 	//SERIAL VARIANT
+	
+	void writeDictionary(Dictionary& dictionary, std::string outputFileName) {
+		std::ofstream fout(outputFileName);
+		if (fout.is_open()) {
+			fout << "Dictionary:";
+			for (const auto& entry : dictionary) {
+				fout << std::endl << entry.word;
+				for (const auto& position : entry.position) {
+					fout << ' ' << position.first << ' ' << position.second;
+				}
+			}
+			fout.close();
+		}
+	}
+
 	void serialIndexConstruction() {
 		size_t indexOfFile{ 0 };
 		Dictionary dictionary;
 		Block block;
+		size_t blockNumber{ 0 };
 		while (indexOfFile < fileNames.size()) {
 			block = parseNextBlock(indexOfFile);
 			dictionary = std::move(getWords(block));
 			dictionary.invert();
-			//writeBlockToDisk
+			writeDictionary(dictionary, "data" + blockNumber);
+			blockNumber++;
 		}
-		//mergeBlocks
+		mergeBlocks(blockNumber);
 	}
 
 public:
@@ -312,19 +555,19 @@ public:
 		this->maxCountOfThreads = maxCountOfThreads;
 		getFileNames(directory);
 
-		if (maxCountOfThreads > 1) {
+		/*if (maxCountOfThreads > 1) {
 			parallelIndexConstruntion(maxCountOfThreads);
 		}
 		else {
 			serialIndexConstruction();
-		}
+		}*/
 	}
 
 	//WRITE ME
-	auto findWord() {
+	/*auto findWord() {
 		std::vector<std::pair<size_t, size_t>> result;
 		return result;
-	}
+	}*/
 
 	//DELETE ME
 	void DEBUG() {
