@@ -1,12 +1,11 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <map>
-#include <array>
 #include <algorithm>
 #include <Windows.h>
 #include <thread>
 #include <string>
+#include <chrono>
 
 class Indexer {
 private:
@@ -368,7 +367,7 @@ private:
 					std::string line;
 					while (!fin.eof()) {
 						std::getline(fin, line);
-						fout << line;
+						fout << line << std::endl;
 					}
 					fin.close();
 				}
@@ -522,7 +521,7 @@ private:
 			currentBlock = std::move(nextBlock);
 		}
 		parallelBlockProcessing(currentBlock, dictionaries, threads, countOfThreads);
-		writeDictionaries(dictionaries, "data" + blockNumber);
+		writeDictionaries(dictionaries, "data" + std::to_string(blockNumber));
 		mergeBlocks(blockNumber);
 	}
 
@@ -550,7 +549,7 @@ private:
 			block = parseNextBlock(indexOfFile);
 			dictionary = std::move(getWords(block));
 			dictionary.invert();
-			writeDictionary(dictionary, "data" + blockNumber);
+			writeDictionary(dictionary, "data" + std::to_string(blockNumber));
 			blockNumber++;
 		}
 		mergeBlocks(blockNumber);
@@ -570,16 +569,20 @@ public:
 			serialIndexConstruction();
 		}
 	}
-
-	
 };
 
 int main() {
 	setlocale(0, "");
 	
 	unsigned char countOfCores = std::thread::hardware_concurrency();
+	std::chrono::high_resolution_clock::time_point before;
+	std::chrono::high_resolution_clock::time_point after;
 	for (; countOfCores; countOfCores--) {
+		before = std::chrono::high_resolution_clock::now();
 		Indexer indexer{ LR"(C:\Users\PC\Desktop\Важна інфа\3 курс\2 sem\ПО\aclImdb)", countOfCores };
+		after = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> time = std::chrono::duration_cast<std::chrono::duration<double>>(after - before);
+		std::cout << countOfCores + '0' << " threads:\t" << time.count() << " seconds" << std::endl;
 	}
 	
 	return 0;
