@@ -148,8 +148,16 @@ private:
 
 	struct Dictionary {
 		auto& operator[](size_t i) {
-			return dictionary.at(i);
+			return dictionary[i];
 		}
+
+		auto& getVector() {
+			return dictionary;
+		}
+		/*
+		auto& operator=(Dictionary dictionary) {
+			return this->dictionary = dictionary.getVector();
+		}*/
 
 		auto begin() {
 			return dictionary.cbegin();
@@ -305,9 +313,9 @@ private:
 			if (countOfBlocks > 1) {
 				std::vector<std::ifstream> block;
 				block.reserve(countOfBlocks);
-				for (size_t i{ 0 }; i < countOfBlocks; i++) {
-					auto s{ "data" + i};
-					std::ifstream fin(s);
+				std::string s{ "data" };
+				for (size_t i{ 0 }; i < countOfBlocks; i++) {	
+					std::ifstream fin(s + std::to_string(i));
 					
 					if (!fin.is_open()) {
 						returnValue = false;
@@ -466,14 +474,14 @@ private:
 			std::thread newThread([this, &block, &dictionaries, i](size_t fromPosition, size_t toPosition) {
 				dictionaries[i] = std::move(getWords(block, fromPosition, toPosition));
 				dictionaries[i].invert();
-			}, fromPosition, fromPosition += (rest ? processingSize + 1 : processingSize));
-
+			}, fromPosition, fromPosition + (rest ? processingSize + 1 : processingSize));
+			fromPosition += (rest ? processingSize + 1 : processingSize);
 			threads[i] = std::move(newThread);
 			if (rest) {
 				rest--;
 			}
 		}
-		dictionaries[countOfThreads - 1] = std::move(getWords(block, fromPosition, fromPosition += processingSize));
+		dictionaries[countOfThreads - 1] = std::move(getWords(block, fromPosition, fromPosition + processingSize));
 		dictionaries[countOfThreads - 1].invert();
 		for (unsigned char i{ 0 }; i < countOfThreads - 1; i++) {
 			threads[i].join();
@@ -555,58 +563,24 @@ public:
 		this->maxCountOfThreads = maxCountOfThreads;
 		getFileNames(directory);
 
-		/*if (maxCountOfThreads > 1) {
+		if (maxCountOfThreads > 1) {
 			parallelIndexConstruntion(maxCountOfThreads);
 		}
 		else {
 			serialIndexConstruction();
-		}*/
-	}
-
-	//WRITE ME
-	/*auto findWord() {
-		std::vector<std::pair<size_t, size_t>> result;
-		return result;
-	}*/
-
-	//DELETE ME
-	void DEBUG() {
-		size_t index{ 0 };
-		auto block{ parseNextBlock(index) };
-		std::vector<Dictionary> dictionary{ getWords(block, 0, block.size() / 2), getWords(block, block.size() / 2) };
-		dictionary[0].invert();
-		dictionary[1].invert();
-		writeDictionaries(dictionary, "data0");
-		writeDictionaries(dictionary, "data1");
-		mergeBlocks(2);
-		//writeDictionary(words, R"(D:\Programming\Programs\course_work_parallel_computing\Debug\Test_files\dictionary.txt)");
-		/*for (int i = 0; i < words1.size(); i++) {
-			std::cout << i << '\t' << words1[i].word;
-			for (const auto& entry : words1[i].position) {
-				std::cout << std::endl << '\t' << entry.first << ' ' << entry.second;
-			}
-			std::cout << std::endl << std::endl;
 		}
-		std::cout << std::endl << std::endl;
-		for (int i = 0; i < words2.size(); i++) {
-			std::cout << i << '\t' << words2[i].word;
-			for (const auto& entry : words2[i].position) {
-				std::cout << std::endl << '\t' << entry.first << ' ' << entry.second;
-			}
-			std::cout << std::endl << std::endl;
-		}*/
 	}
+
+	
 };
 
 int main() {
 	setlocale(0, "");
 	
-	Indexer indexer{ LR"(D:\Programming\Programs\course_work_parallel_computing\Debug\Test_files)", 1 };
-	indexer.DEBUG();
-	/*unsigned char countOfCores = std::thread::hardware_concurrency();
+	unsigned char countOfCores = std::thread::hardware_concurrency();
 	for (; countOfCores; countOfCores--) {
 		Indexer indexer{ LR"(C:\Users\PC\Desktop\Важна інфа\3 курс\2 sem\ПО\aclImdb)", countOfCores };
-	}*/
+	}
 	
 	return 0;
 }
