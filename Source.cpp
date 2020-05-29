@@ -125,7 +125,7 @@ private:
 	};
 
 	struct Block {
-		auto operator[](size_t i) {
+		auto &operator[](size_t i) {
 			return block.at(i);
 		}
 
@@ -166,9 +166,9 @@ private:
 		//TEST ME
 		void invert() {
 			std::sort(dictionary.begin(), dictionary.end());
-			size_t fromPosition;
+			size_t fromPosition{ 1 };
 			size_t toPosition{ dictionary.size() - 1 };
-			while (toPosition > 0) {
+			while (toPosition) {
 				if (dictionary[toPosition] == dictionary[toPosition - 1]) {
 					//find interval
 					fromPosition = toPosition - 1;
@@ -183,7 +183,7 @@ private:
 					auto iteratorFrom{ std::next(dictionary.cbegin(), fromPosition + 1) };
 					auto iteratorTo{ std::next(dictionary.cbegin(), toPosition + 1) };
 					dictionary.erase(iteratorFrom, iteratorTo);
-					toPosition = fromPosition - 1;
+					toPosition = fromPosition ? fromPosition - 1 : 0;
 				}
 				else {
 					toPosition--;
@@ -250,7 +250,6 @@ private:
 			BOOL fileFound{ true };
 			fileFound = FindNextFile(fileHandle, &findFileData);
 			while (fileFound) {
-				fileFound = FindNextFile(fileHandle, &findFileData);
 				if (findFileData.cFileName[0] != L'.') {
 					if (findFileData.dwFileAttributes == FILE_ATTRIBUTE_DIRECTORY) {
 						directoryCopy = directory + findFileData.cFileName + L'\\';
@@ -260,6 +259,7 @@ private:
 						fileNames.push_back(directory + findFileData.cFileName);
 					}
 				}
+				fileFound = FindNextFile(fileHandle, &findFileData);
 			}
 		}
 	}
@@ -304,15 +304,16 @@ private:
 		if (returnValue) {
 			if (countOfBlocks > 1) {
 				std::vector<std::ifstream> block;
-				block.resize(countOfBlocks);
+				block.reserve(countOfBlocks);
 				for (size_t i{ 0 }; i < countOfBlocks; i++) {
-					block[i].open("data" + i);
-					if (block[i].eof()) {
-						block[i] = std::move(block.back());
-						block.pop_back();
-					}
-					if (!block[i].is_open()) {
+					auto s{ "data" + i};
+					std::ifstream fin(s);
+					
+					if (!fin.is_open()) {
 						returnValue = false;
+					}
+					else if(!fin.eof()) {
+						block.push_back(std::move(fin));
 					}
 				}
 				if (returnValue) {
@@ -411,19 +412,19 @@ private:
 
 	void writeDictionaries(std::vector<Dictionary>& dictionaries, std::string outputFileName) {
 		//find count of words we shouls write
-		size_t remainingCount{ dictionaries[0].size() };
-		for (size_t i{ 1 }; i < dictionaries.size(); i++) {
+		size_t remainingCount{ 0 };
+		for (size_t i{ 0 }; i < dictionaries.size(); i++) {
 			remainingCount += dictionaries[i].size();
 		}
 
 		//create index for each dictionary
-		std::vector<size_t> index(0, dictionaries.size());
+		std::vector<size_t> index(dictionaries.size(), 0);
 
 		std::ofstream fout(outputFileName);
 		if (fout.is_open()) {
 			size_t current;
 			std::string previousWord{ "" };
-			fout << "Dictionary:";
+			
 			while (remainingCount) {
 				//find minimal word to write
 				current = 0;
@@ -522,7 +523,6 @@ private:
 	void writeDictionary(Dictionary& dictionary, std::string outputFileName) {
 		std::ofstream fout(outputFileName);
 		if (fout.is_open()) {
-			fout << "Dictionary:";
 			for (const auto& entry : dictionary) {
 				fout << std::endl << entry.word;
 				for (const auto& position : entry.position) {
@@ -571,17 +571,42 @@ public:
 
 	//DELETE ME
 	void DEBUG() {
-		
+		size_t index{ 0 };
+		auto block{ parseNextBlock(index) };
+		std::vector<Dictionary> dictionary{ getWords(block, 0, block.size() / 2), getWords(block, block.size() / 2) };
+		dictionary[0].invert();
+		dictionary[1].invert();
+		writeDictionaries(dictionary, "data0");
+		writeDictionaries(dictionary, "data1");
+		mergeBlocks(2);
+		//writeDictionary(words, R"(D:\Programming\Programs\course_work_parallel_computing\Debug\Test_files\dictionary.txt)");
+		/*for (int i = 0; i < words1.size(); i++) {
+			std::cout << i << '\t' << words1[i].word;
+			for (const auto& entry : words1[i].position) {
+				std::cout << std::endl << '\t' << entry.first << ' ' << entry.second;
+			}
+			std::cout << std::endl << std::endl;
+		}
+		std::cout << std::endl << std::endl;
+		for (int i = 0; i < words2.size(); i++) {
+			std::cout << i << '\t' << words2[i].word;
+			for (const auto& entry : words2[i].position) {
+				std::cout << std::endl << '\t' << entry.first << ' ' << entry.second;
+			}
+			std::cout << std::endl << std::endl;
+		}*/
 	}
 };
 
 int main() {
 	setlocale(0, "");
 	
-	unsigned char countOfCores = std::thread::hardware_concurrency();
+	Indexer indexer{ LR"(D:\Programming\Programs\course_work_parallel_computing\Debug\Test_files)", 1 };
+	indexer.DEBUG();
+	/*unsigned char countOfCores = std::thread::hardware_concurrency();
 	for (; countOfCores; countOfCores--) {
 		Indexer indexer{ LR"(C:\Users\PC\Desktop\Важна інфа\3 курс\2 sem\ПО\aclImdb)", countOfCores };
-		indexer.DEBUG();
-	}
+	}*/
+	
 	return 0;
 }
