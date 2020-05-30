@@ -38,6 +38,8 @@ private:
 
 		Word() = default;
 
+		virtual ~Word() {};
+
 		Word(std::string str)
 			:std::string(str)
 		{
@@ -582,7 +584,7 @@ int main() {
 		Indexer indexer{ LR"(C:\Users\PC\Desktop\Важна інфа\3 курс\2 sem\ПО\aclImdb)", countOfCores };
 		after = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> time = std::chrono::duration_cast<std::chrono::duration<double>>(after - before);
-		std::cout << countOfCores + '0' << " threads:\t" << time.count() << " seconds" << std::endl;
+		std::cout << static_cast<size_t>(countOfCores) << " threads:\t" << time.count() << " seconds" << std::endl;
 	}
 	
 	return 0;
